@@ -21,11 +21,21 @@ type Options struct {
 	Numbers bool
 }
 
+type NameOptions struct {
+	Options
+	FeedLength       int
+	FeedCurrent      int
+	EnclosureLength  int
+	EnclosureCurrent int
+	Url              string
+	Filename         string
+}
+
 func main() {
 	start := time.Now()
 
 	options := Options{}
-	flag.BoolVar(&options.Numbers, "n", true, "add numbers for track positions")
+	flag.BoolVar(&options.Numbers, "n", false, "add numbers for track positions")
 	flag.Parse()
 	url := flag.Arg(0)
 
@@ -48,18 +58,16 @@ func Download(feed *gofeed.Feed, opt Options) {
 
 		for encIndex, enclosure := range item.Enclosures {
 
-			position := ""
-			if opt.Numbers {
-				position = fmt.Sprintf("%0*d", zeroPadding, len(feed.Items)-index)
-				if len(item.Enclosures) > 1 {
-					position += fmt.Sprintf(".%0*d", orderOfMagnitude(len(item.Enclosures))+1, len(item.Enclosures)-encIndex)
-				}
-				position += " - "
+			nameOpts := NameOptions{
+				Options:          opt,
+				FeedLength:       len(feed.Items),
+				FeedCurrent:      index,
+				EnclosureLength:  len(item.Enclosures),
+				EnclosureCurrent: encIndex,
+				Url:              enclosure.URL,
+				Filename:         item.Title,
 			}
-
-			ext := path.Ext(enclosure.URL)
-			name := cleanFilename(item.Title) + ext
-			name = position + name
+			name := createFilename(nameOpts)
 
 			if fileExists(name) {
 				stats, err := os.Stat(name)
@@ -93,6 +101,25 @@ func Download(feed *gofeed.Feed, opt Options) {
 			ioutil.WriteFile(name, bytes, 777)
 		}
 	}
+}
+
+func createFilename(opt NameOptions) string {
+	position := ""
+	if opt.Numbers {
+		feedZeroPadding := orderOfMagnitude(opt.FeedLength) + 1
+
+		position = fmt.Sprintf("%0*d", feedZeroPadding, opt.FeedLength-opt.FeedCurrent)
+		if opt.EnclosureLength > 1 {
+			encZeroPadding := orderOfMagnitude(opt.EnclosureLength) + 1
+			position += fmt.Sprintf(".%0*d", encZeroPadding, opt.EnclosureLength-opt.EnclosureCurrent)
+		}
+		position += " - "
+	}
+
+	ext := path.Ext(opt.Url)
+	name := cleanFilename(opt.Filename) + ext
+	name = position + name
+	return name
 }
 
 func UpdateLocalFeedFile(filepath string, feedValue string) {
