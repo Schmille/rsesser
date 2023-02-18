@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"flag"
 	"fmt"
 	"github.com/mmcdole/gofeed"
 	"io/ioutil"
@@ -16,29 +17,49 @@ import (
 	"time"
 )
 
+type Options struct {
+	Numbers bool
+}
+
 func main() {
 	start := time.Now()
 
-	url := os.Args[1]
+	options := Options{}
+	flag.BoolVar(&options.Numbers, "n", true, "add numbers for track positions")
+	flag.Parse()
+	url := flag.Arg(0)
+
 	const filepath = "feed.xml"
 	feedValue := fetchXMLDefinition(url)
 	UpdateLocalFeedFile(filepath, feedValue)
 
 	feed := readFeed(feedValue)
 	fmt.Printf("Found %d items!\n", len(feed.Items))
-	Download(feed)
+	Download(feed, options)
 
 	stop := time.Now()
 	fmt.Printf("Started at %s, stopped at %s, took %s", start, stop, stop.Sub(start))
 }
 
-func Download(feed *gofeed.Feed) {
+func Download(feed *gofeed.Feed, opt Options) {
 	for index, item := range feed.Items {
-		log.Printf("Starting (%0*d / %d) %s\n", orderOfMagnitude(len(feed.Items))+1, index+1, len(feed.Items), item.Title)
+		zeroPadding := orderOfMagnitude(len(feed.Items)) + 1
+		log.Printf("Starting item (%0*d / %d) %s\n", zeroPadding, index+1, len(feed.Items), item.Title)
 
-		for _, enclosure := range item.Enclosures {
+		for encIndex, enclosure := range item.Enclosures {
+
+			position := ""
+			if opt.Numbers {
+				position = fmt.Sprintf("%0*d", zeroPadding, len(feed.Items)-index)
+				if len(item.Enclosures) > 1 {
+					position += fmt.Sprintf(".%0*d", orderOfMagnitude(len(item.Enclosures))+1, len(item.Enclosures)-encIndex)
+				}
+				position += " - "
+			}
+
 			ext := path.Ext(enclosure.URL)
 			name := cleanFilename(item.Title) + ext
+			name = position + name
 
 			if fileExists(name) {
 				stats, err := os.Stat(name)
