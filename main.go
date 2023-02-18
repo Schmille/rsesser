@@ -2,9 +2,11 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"github.com/mmcdole/gofeed"
 	"io/ioutil"
 	"log"
+	"math"
 	"net/http"
 	"os"
 	"path"
@@ -20,12 +22,14 @@ func main() {
 	UpdateLocalFeedFile(filepath, feedValue)
 
 	feed := readFeed(feedValue)
+	fmt.Printf("Found %d items!\n", len(feed.Items))
 	Download(feed)
 }
 
 func Download(feed *gofeed.Feed) {
-	for _, item := range feed.Items {
-		log.Printf("Starting %s\n", item.Title)
+	for index, item := range feed.Items {
+		log.Printf("Starting (%0*d / %d) %s\n", orderOfMagnitude(len(feed.Items))+1, index+1, len(feed.Items), item.Title)
+
 		for _, enclosure := range item.Enclosures {
 			ext := path.Ext(enclosure.URL)
 			name := cleanFilename(item.Title) + ext
@@ -43,6 +47,8 @@ func Download(feed *gofeed.Feed) {
 
 				if stats.Size() < enclosureLength {
 					os.Remove(name)
+				} else {
+					log.Printf("File %s already exists and appears to be intact. Skipping...", name)
 					continue
 				}
 			}
@@ -127,4 +133,8 @@ func cleanFilename(name string) string {
 		name = strings.ReplaceAll(name, "\"", " - ")
 	}
 	return name
+}
+
+func orderOfMagnitude(number int) int {
+	return int(math.Floor(math.Log10(float64(number))))
 }
