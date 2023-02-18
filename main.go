@@ -13,9 +13,12 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"time"
 )
 
 func main() {
+	start := time.Now()
+
 	url := os.Args[1]
 	const filepath = "feed.xml"
 	feedValue := fetchXMLDefinition(url)
@@ -24,6 +27,9 @@ func main() {
 	feed := readFeed(feedValue)
 	fmt.Printf("Found %d items!\n", len(feed.Items))
 	Download(feed)
+
+	stop := time.Now()
+	fmt.Printf("Started at %s, stopped at %s, took %s", start, stop, stop.Sub(start))
 }
 
 func Download(feed *gofeed.Feed) {
