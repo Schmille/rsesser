@@ -18,7 +18,8 @@ import (
 )
 
 type Options struct {
-	Numbers bool
+	Numbers     bool
+	OldestFirst bool
 }
 
 type NameOptions struct {
@@ -36,6 +37,7 @@ func main() {
 
 	options := Options{}
 	flag.BoolVar(&options.Numbers, "n", false, "add numbers for track positions")
+	flag.BoolVar(&options.OldestFirst, "l", false, "download oldest entries first")
 	flag.Parse()
 	url := flag.Arg(0)
 
@@ -52,7 +54,12 @@ func main() {
 }
 
 func Download(feed *gofeed.Feed, opt Options) {
-	for index, item := range feed.Items {
+	queue := feed.Items
+	if opt.OldestFirst {
+		queue = reverse(queue)
+	}
+
+	for index, item := range queue {
 		zeroPadding := orderOfMagnitude(len(feed.Items)) + 1
 		log.Printf("Starting item (%0*d / %d) %s\n", zeroPadding, index+1, len(feed.Items), item.Title)
 
@@ -104,21 +111,28 @@ func Download(feed *gofeed.Feed, opt Options) {
 }
 
 func createFilename(opt NameOptions) string {
-	position := ""
+	positionNamePart := ""
 	if opt.Numbers {
 		feedZeroPadding := orderOfMagnitude(opt.FeedLength) + 1
 
-		position = fmt.Sprintf("%0*d", feedZeroPadding, opt.FeedLength-opt.FeedCurrent)
+		position := 0
+		if !opt.OldestFirst {
+			position = opt.FeedLength - opt.FeedCurrent
+		} else {
+			position = opt.FeedCurrent + 1
+		}
+
+		positionNamePart = fmt.Sprintf("%0*d", feedZeroPadding, position)
 		if opt.EnclosureLength > 1 {
 			encZeroPadding := orderOfMagnitude(opt.EnclosureLength) + 1
-			position += fmt.Sprintf(".%0*d", encZeroPadding, opt.EnclosureLength-opt.EnclosureCurrent)
+			positionNamePart += fmt.Sprintf(".%0*d", encZeroPadding, opt.EnclosureLength-opt.EnclosureCurrent)
 		}
-		position += " - "
+		positionNamePart += " - "
 	}
 
 	ext := path.Ext(opt.Url)
 	name := cleanFilename(opt.Filename) + ext
-	name = position + name
+	name = positionNamePart + name
 	return name
 }
 
@@ -191,4 +205,14 @@ func cleanFilename(name string) string {
 
 func orderOfMagnitude(number int) int {
 	return int(math.Floor(math.Log10(float64(number))))
+}
+
+func reverse(items []*gofeed.Item) []*gofeed.Item {
+	out := make([]*gofeed.Item, len(items))
+	j := 0
+	for i := len(items) - 1; i >= 0; i-- {
+		out[j] = items[i]
+		j++
+	}
+	return out
 }
